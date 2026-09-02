@@ -2,6 +2,7 @@
 
 This is an update of a great little 32bit VST2 plugin called [The CS Piky](https://www.dariolupo.com/index.html#shop?vst). It is quite an accurate representation of it too. Maybe some others can get some enjoyment from this nice sounding synth!
 
+![jpg CSPiky64](Resources/CSPiky64.jpg)
 
 ## Installation
 
