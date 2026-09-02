@@ -1,5 +1,14 @@
 # CS Piky 64
 
+[![Release](https://img.shields.io/github/v/release/sl2365/CSPiky64?style=for-the-badge-square&logo=github&logoColor=white&color=violet)](https://github.com/sl2365/CSPiky64/releases/latest/download/CSPiky64.rar)
+[![Release Date](https://img.shields.io/github/release-date/sl2365/CSPiky64?style=for-the-badge-square&logo=github&logoColor=white&color=yellow)](https://github.com/sl2365/CSPiky64/releases)
+
+[![Latest Asset Downloads](https://img.shields.io/github/downloads/sl2365/CSPiky64/latest/CSPiky64.rar?style=for-the-badge-square&logo=github&logoColor=white&label=downloads-latest&displayAssetName=false&color=blue)](https://github.com/sl2365/CSPiky64/releases/latest)
+[![Total Downloads](https://img.shields.io/github/downloads/sl2365/CSPiky64/total?style=for-the-badge-square&logo=github&logoColor=white&label=downloads-total&color=blue)](https://github.com/sl2365/CSPiky64/releases)
+
+[![Commits Since Release](https://img.shields.io/github/commits-since/sl2365/CSPiky64/latest?style=for-the-badge-square&logo=github&logoColor=white&color=green)](https://github.com/sl2365/CSPiky64/activity)
+[![Last Commit](https://img.shields.io/github/last-commit/sl2365/CSPiky64?style=for-the-badge-square&logo=github&logoColor=white&color=green)](https://github.com/sl2365/CSPiky64/activity)
+
 This is an update of a great little 32bit VST2 plugin called [The CS Piky](https://www.dariolupo.com/index.html#shop?vst). It is quite an accurate representation of it too. Maybe some others can get some enjoyment from this nice sounding synth!
 
 ![jpg CSPiky64](Resources/CSPiky64.jpg)
