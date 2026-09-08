@@ -18,6 +18,12 @@ public:
     void resized() override;
 
 private:
+    struct FactoryPreset
+    {
+        juce::String name;
+        juce::StringPairArray values;
+    };
+
     class CompactTextButton final : public juce::TextButton
     {
     public:
@@ -34,6 +40,7 @@ private:
     {
     public:
         void setText (const juce::String&);
+        void setTextColour (juce::Colour);
         void paint (juce::Graphics&) override;
         void mouseWheelMove (const juce::MouseEvent&,
                              const juce::MouseWheelDetails&) override;
@@ -42,7 +49,7 @@ private:
 
     private:
         juce::String text { "INIT" };
-        juce::uint32 lastWheelTime = 0;
+        juce::Colour textColour { 0xff242424 };
     };
 
     class ProportionalRotaryLookAndFeel final : public juce::LookAndFeel_V4
@@ -124,10 +131,14 @@ private:
 
     void updateControlText();
     void updateScopeColour();
+    void loadFactoryPresets();
+    void migrateLegacyPresetFolder();
     void refreshPresetFiles();
     void restorePresetLabelFromState();
     void selectRelativePreset (int delta);
     void loadInitialPreset();
+    void loadFactoryPreset (int index);
+    bool applyPresetValues (const juce::StringPairArray&, const juce::String& sourceName);
     bool loadPresetFile (const juce::File&);
     bool savePresetFile (const juce::File&, const juce::String& presetName);
     void saveCurrentPreset();
@@ -136,16 +147,19 @@ private:
     void showPresetNamePrompt (bool renameExistingPreset);
     void showPresetMenu();
     void showPresetError (const juce::String&) const;
-    void setCurrentPreset (const juce::String&, const juce::File&);
+    void setCurrentPreset (const juce::String&, const juce::File&,
+                           int factoryPresetIndex = -1);
     juce::Point<int> loadEditorSize() const;
     void saveEditorSize() const;
 
     CSPiky64AudioProcessor& processor;
     juce::File dataDirectory;
     juce::File presetDirectory;
+    std::vector<FactoryPreset> factoryPresets;
     std::vector<juce::File> presetFiles;
     juce::File currentPresetFile;
     juce::String currentPresetName { "INIT" };
+    int currentFactoryPresetIndex = -1;
     GridKeyboard gridKeyboard;
     ScopeDisplay scopeDisplay;
     OctaveSelector octaveSelector;

@@ -23,6 +23,10 @@ constexpr auto outputVolumeDbId = "outputVolumeDb";
 constexpr auto filterPositionId = "filterCutoffHz";
 constexpr auto scopeColourId = "scopeColour";
 constexpr auto filterBypassStart = 0.98f;
+constexpr auto lowerDetunedSawRatio = 0.9772;
+constexpr auto upperDetunedSawRatio = 1.0228;
+constexpr auto lowerDetunedSawLevel = 0.64;
+constexpr auto upperDetunedSawLevel = 0.08;
 
 double getMeasuredFilterCutoff (float position) noexcept
 {
@@ -94,8 +98,8 @@ public:
         const auto cyclesPerSecond = juce::MidiMessage::getMidiNoteInHertz (transposedNote);
         phaseDelta = juce::MathConstants<double>::twoPi * cyclesPerSecond / getSampleRate();
         wave2PhaseDelta = phaseDelta;
-        wave2PhaseDeltaA = phaseDelta * 0.9965;
-        wave2PhaseDeltaB = phaseDelta * 1.0035;
+        wave2PhaseDeltaA = phaseDelta * lowerDetunedSawRatio;
+        wave2PhaseDeltaB = phaseDelta * upperDetunedSawRatio;
         phase = 0.0;
         wave2Phase = 0.0;
         wave2PhaseA = 0.0;
@@ -159,7 +163,9 @@ public:
                 {
                     const auto detunedSawA = renderSawWave (wave2PhaseA);
                     const auto detunedSawB = renderSawWave (wave2PhaseB);
-                    mixed += 0.18 * detunedSawMix * 0.5 * (detunedSawA + detunedSawB);
+                    mixed += detunedSawMix
+                           * (lowerDetunedSawLevel * detunedSawA
+                              + upperDetunedSawLevel * detunedSawB);
                 }
             }
 

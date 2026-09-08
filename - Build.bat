@@ -28,10 +28,10 @@ set "JUCE_CMAKE=%PROJECT_ROOT%..\_Tools\JUCE\_8.0.15\CMakeLists.txt"
 set "BUNDLE_BINARY=%BUILD_DIR%\CSPiky64_artefacts\Release\VST3\CSPiky64.vst3\Contents\x86_64-win\CSPiky64.vst3"
 set "FINAL_PLUGIN=%DIST_DIR%\CSPiky64.vst3"
 set "DATA_DIR=%DIST_DIR%\Data"
-set "PRESET_DIR=%DATA_DIR%\Preset"
+set "PRESET_DIR=%DATA_DIR%\Presets"
 
 echo.
-echo CSPiky64 64-bit VST3 - Stage 0.33 Build
+echo CSPiky64 64-bit VST3 - Version 1.37 Build
 echo ======================================
 echo.
 
@@ -128,7 +128,7 @@ echo Output:
 echo   %FINAL_PLUGIN%
 echo   %PRESET_DIR%
 echo.
-echo This is the Stage 0.33 preset-management-and-size-settings build.
+echo This is the Version 1.37 sl23 plug-in-identity build.
 echo No plug-in files were installed elsewhere.
 echo.
 exit /b 0
@@ -205,7 +205,7 @@ goto :failed
 :data_failed
 echo.
 echo BUILD FAILED
-echo   - FAIL: dist\Data\Preset could not be created or verified
+echo   - FAIL: dist\Data\Presets could not be created or verified
 goto :failed
 
 :wrong_architecture

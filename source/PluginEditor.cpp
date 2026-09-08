@@ -1,4 +1,5 @@
 #include "PluginEditor.h"
+#include "CSPiky64FactoryPresets.h"
 
 #include <algorithm>
 #include <array>
@@ -19,6 +20,9 @@ constexpr float minimumEditorScale = 0.75f;
 constexpr float maximumEditorScale = 2.0f;
 constexpr auto octaveUpId = "octaveUp";
 constexpr auto currentPresetNameProperty = "currentPresetName";
+constexpr auto factoryPresetNameColour = 0xffa56902;
+constexpr auto userPresetNameColour = 0xff037aa4;
+constexpr auto initialPresetNameColour = 0xff242424;
 
 constexpr std::array<const char*, 12> presetParameterIds {
     "wave1Strong",
@@ -63,11 +67,11 @@ juce::File getPluginDataDirectory()
         .getChildFile ("Data");
 }
 
-juce::StringPairArray readIniFile (const juce::File& file)
+juce::StringPairArray readIniText (const juce::String& text)
 {
     juce::StringPairArray values (true);
     juce::StringArray lines;
-    lines.addLines (file.loadFileAsString());
+    lines.addLines (text);
 
     for (auto line : lines)
     {
@@ -86,6 +90,11 @@ juce::StringPairArray readIniFile (const juce::File& file)
     }
 
     return values;
+}
+
+juce::StringPairArray readIniFile (const juce::File& file)
+{
+    return readIniText (file.loadFileAsString());
 }
 
 juce::String legalPresetName (juce::String requestedName)
@@ -177,6 +186,16 @@ void CSPiky64AudioProcessorEditor::PresetNameDisplay::setText (const juce::Strin
     }
 }
 
+void CSPiky64AudioProcessorEditor::PresetNameDisplay::setTextColour (
+    juce::Colour newColour)
+{
+    if (textColour != newColour)
+    {
+        textColour = newColour;
+        repaint();
+    }
+}
+
 void CSPiky64AudioProcessorEditor::PresetNameDisplay::paint (juce::Graphics& g)
 {
     auto bounds = getLocalBounds().toFloat().reduced (0.5f);
@@ -184,8 +203,8 @@ void CSPiky64AudioProcessorEditor::PresetNameDisplay::paint (juce::Graphics& g)
     g.fillRoundedRectangle (bounds, 1.8f);
     g.setColour (juce::Colour (0xff686864));
     g.drawRoundedRectangle (bounds, 1.8f, 1.0f);
-    g.setColour (juce::Colour (0xff242424));
-    g.setFont (juce::FontOptions (getHeight() * 0.48f, juce::Font::bold));
+    g.setColour (textColour);
+    g.setFont (juce::FontOptions (getHeight() * 0.54f, juce::Font::bold));
     g.drawFittedText (text, getLocalBounds().reduced (3, 0),
                       juce::Justification::centred, 1, 0.72f);
 }
@@ -200,11 +219,6 @@ void CSPiky64AudioProcessorEditor::PresetNameDisplay::mouseWheelMove (
     if (movement == 0.0f)
         return;
 
-    const auto now = juce::Time::getMillisecondCounter();
-    if (lastWheelTime != 0 && now - lastWheelTime < 100)
-        return;
-
-    lastWheelTime = now;
     if (onStep != nullptr)
         onStep (movement > 0.0f ? -1 : 1);
 }
@@ -585,13 +599,15 @@ CSPiky64AudioProcessorEditor::CSPiky64AudioProcessorEditor (CSPiky64AudioProcess
     : AudioProcessorEditor (&owner),
       processor (owner),
       dataDirectory (getPluginDataDirectory()),
-      presetDirectory (dataDirectory.getChildFile ("Preset")),
+      presetDirectory (dataDirectory.getChildFile ("Presets")),
       gridKeyboard (owner.getKeyboardState()),
       scopeDisplay (owner),
       octaveSelector (owner.getParameters())
 {
     dataDirectory.createDirectory();
     presetDirectory.createDirectory();
+    migrateLegacyPresetFolder();
+    loadFactoryPresets();
 
     addAndMakeVisible (gridKeyboard);
     addAndMakeVisible (scopeDisplay);
@@ -632,6 +648,9 @@ CSPiky64AudioProcessorEditor::CSPiky64AudioProcessorEditor (CSPiky64AudioProcess
     configureModeButton (wave1ModeButton);
     configureModeButton (wave2EnabledButton);
     configureModeButton (characterButton);
+    wave1ModeButton.setMouseCursor (juce::MouseCursor::PointingHandCursor);
+    wave2EnabledButton.setMouseCursor (juce::MouseCursor::PointingHandCursor);
+    characterButton.setMouseCursor (juce::MouseCursor::PointingHandCursor);
 
     wave2ShapeKnob.setName ("Wave 2 shape");
     wave2ShapeKnob.setLookAndFeel (&rotaryLookAndFeel);
@@ -773,6 +792,57 @@ CSPiky64AudioProcessorEditor::~CSPiky64AudioProcessorEditor()
     presetNameWindow.reset();
 }
 
+void CSPiky64AudioProcessorEditor::loadFactoryPresets()
+{
+    factoryPresets.clear();
+
+    for (int index = 0; index < CSPiky64FactoryData::namedResourceListSize; ++index)
+    {
+        int dataSize = 0;
+        const auto* data = CSPiky64FactoryData::getNamedResource (
+            CSPiky64FactoryData::namedResourceList[index], dataSize);
+
+        if (data == nullptr || dataSize <= 0)
+            continue;
+
+        auto values = readIniText (juce::String::fromUTF8 (data, dataSize));
+        const auto name = values.getValue ("Name", {}).trim();
+
+        auto isComplete = name.isNotEmpty();
+        for (const auto* parameterId : presetParameterIds)
+            isComplete = isComplete && values.containsKey (parameterId);
+
+        if (isComplete)
+            factoryPresets.push_back ({ name, std::move (values) });
+    }
+
+    std::sort (factoryPresets.begin(), factoryPresets.end(),
+               [] (const FactoryPreset& first, const FactoryPreset& second)
+               {
+                   return first.name.compareIgnoreCase (second.name) < 0;
+               });
+
+    jassert (factoryPresets.size() == 14);
+}
+
+void CSPiky64AudioProcessorEditor::migrateLegacyPresetFolder()
+{
+    const auto legacyDirectory = dataDirectory.getChildFile ("Preset");
+    if (! legacyDirectory.isDirectory())
+        return;
+
+    presetDirectory.createDirectory();
+    const auto legacyFiles = legacyDirectory.findChildFiles (juce::File::findFiles,
+                                                              false, "*.ini");
+
+    for (const auto& legacyFile : legacyFiles)
+    {
+        const auto destination = presetDirectory.getChildFile (legacyFile.getFileName());
+        if (! destination.existsAsFile())
+            legacyFile.moveFileTo (destination);
+    }
+}
+
 void CSPiky64AudioProcessorEditor::refreshPresetFiles()
 {
     presetFiles.clear();
@@ -804,6 +874,16 @@ void CSPiky64AudioProcessorEditor::restorePresetLabelFromState()
         return;
     }
 
+    for (int index = 0; index < static_cast<int> (factoryPresets.size()); ++index)
+    {
+        const auto& factoryPreset = factoryPresets[static_cast<std::size_t> (index)];
+        if (factoryPreset.name.equalsIgnoreCase (storedName))
+        {
+            setCurrentPreset (factoryPreset.name, {}, index);
+            return;
+        }
+    }
+
     for (const auto& file : presetFiles)
     {
         if (file.getFileNameWithoutExtension().equalsIgnoreCase (storedName))
@@ -819,11 +899,18 @@ void CSPiky64AudioProcessorEditor::restorePresetLabelFromState()
 }
 
 void CSPiky64AudioProcessorEditor::setCurrentPreset (const juce::String& presetName,
-                                                      const juce::File& presetFile)
+                                                      const juce::File& presetFile,
+                                                      int factoryPresetIndex)
 {
     currentPresetName = presetName.isNotEmpty() ? presetName : "INIT";
     currentPresetFile = presetFile;
+    currentFactoryPresetIndex = factoryPresetIndex;
     presetNameDisplay.setText (currentPresetName);
+    presetNameDisplay.setTextColour (
+        currentFactoryPresetIndex >= 0 ? juce::Colour (factoryPresetNameColour)
+                                      : currentPresetFile.getFullPathName().isNotEmpty()
+                                            ? juce::Colour (userPresetNameColour)
+                                            : juce::Colour (initialPresetNameColour));
     renamePresetButton.setEnabled (currentPresetFile.existsAsFile());
     processor.getParameters().state.setProperty (currentPresetNameProperty,
                                                   currentPresetName, nullptr);
@@ -833,19 +920,40 @@ void CSPiky64AudioProcessorEditor::selectRelativePreset (int delta)
 {
     refreshPresetFiles();
 
-    const auto presetCount = static_cast<int> (presetFiles.size()) + 1;
+    const auto factoryPresetCount = static_cast<int> (factoryPresets.size());
+    const auto presetCount = static_cast<int> (presetFiles.size())
+                           + factoryPresetCount + 1;
     auto currentIndex = 0;
+    auto currentPresetWasFound = currentPresetName.equalsIgnoreCase ("INIT")
+                              && currentFactoryPresetIndex < 0
+                              && currentPresetFile.getFullPathName().isEmpty();
 
-    if (currentPresetFile.existsAsFile())
+    if (currentFactoryPresetIndex >= 0
+        && currentFactoryPresetIndex < factoryPresetCount)
+    {
+        currentIndex = currentFactoryPresetIndex + 1;
+        currentPresetWasFound = true;
+    }
+    else if (currentPresetFile.getFullPathName().isNotEmpty())
     {
         for (int index = 0; index < static_cast<int> (presetFiles.size()); ++index)
         {
             if (presetFiles[static_cast<std::size_t> (index)] == currentPresetFile)
             {
-                currentIndex = index + 1;
+                currentIndex = index + factoryPresetCount + 1;
+                currentPresetWasFound = true;
                 break;
             }
         }
+    }
+
+    // A user preset may have been removed while the editor was open. Recover to
+    // a known state first instead of jumping from the stale name to an unrelated
+    // position in the refreshed list.
+    if (! currentPresetWasFound)
+    {
+        loadInitialPreset();
+        return;
     }
 
     auto nextIndex = (currentIndex + delta) % presetCount;
@@ -854,8 +962,11 @@ void CSPiky64AudioProcessorEditor::selectRelativePreset (int delta)
 
     if (nextIndex == 0)
         loadInitialPreset();
+    else if (nextIndex <= factoryPresetCount)
+        loadFactoryPreset (nextIndex - 1);
     else
-        loadPresetFile (presetFiles[static_cast<std::size_t> (nextIndex - 1)]);
+        loadPresetFile (presetFiles[static_cast<std::size_t> (
+            nextIndex - factoryPresetCount - 1)]);
 }
 
 void CSPiky64AudioProcessorEditor::loadInitialPreset()
@@ -875,15 +986,19 @@ void CSPiky64AudioProcessorEditor::loadInitialPreset()
     setCurrentPreset ("INIT", {});
 }
 
-bool CSPiky64AudioProcessorEditor::loadPresetFile (const juce::File& file)
+void CSPiky64AudioProcessorEditor::loadFactoryPreset (int index)
 {
-    if (! file.existsAsFile())
-    {
-        showPresetError ("The selected preset file no longer exists.");
-        return false;
-    }
+    if (index < 0 || index >= static_cast<int> (factoryPresets.size()))
+        return;
 
-    const auto values = readIniFile (file);
+    const auto& factoryPreset = factoryPresets[static_cast<std::size_t> (index)];
+    if (applyPresetValues (factoryPreset.values, factoryPreset.name))
+        setCurrentPreset (factoryPreset.name, {}, index);
+}
+
+bool CSPiky64AudioProcessorEditor::applyPresetValues (
+    const juce::StringPairArray& values, const juce::String& sourceName)
+{
     auto& parameterState = processor.getParameters();
     std::vector<std::pair<juce::RangedAudioParameter*, float>> pendingValues;
     pendingValues.reserve (presetParameterIds.size());
@@ -893,16 +1008,14 @@ bool CSPiky64AudioProcessorEditor::loadPresetFile (const juce::File& file)
         auto* parameter = parameterState.getParameter (parameterId);
         if (parameter == nullptr || ! values.containsKey (parameterId))
         {
-            showPresetError ("The preset is incomplete or incompatible:\n"
-                             + file.getFileName());
+            showPresetError ("The preset is incomplete or incompatible:\n" + sourceName);
             return false;
         }
 
         const auto actualValue = values[parameterId].getDoubleValue();
         if (! std::isfinite (actualValue))
         {
-            showPresetError ("The preset contains an invalid value:\n"
-                             + file.getFileName());
+            showPresetError ("The preset contains an invalid value:\n" + sourceName);
             return false;
         }
 
@@ -919,6 +1032,21 @@ bool CSPiky64AudioProcessorEditor::loadPresetFile (const juce::File& file)
         pendingValue.first->endChangeGesture();
     }
 
+    return true;
+}
+
+bool CSPiky64AudioProcessorEditor::loadPresetFile (const juce::File& file)
+{
+    if (! file.existsAsFile())
+    {
+        showPresetError ("The selected preset file no longer exists.");
+        return false;
+    }
+
+    const auto values = readIniFile (file);
+    if (! applyPresetValues (values, file.getFileName()))
+        return false;
+
     auto presetName = values.getValue ("Name", file.getFileNameWithoutExtension()).trim();
     if (presetName.isEmpty())
         presetName = file.getFileNameWithoutExtension();
@@ -932,7 +1060,7 @@ bool CSPiky64AudioProcessorEditor::savePresetFile (const juce::File& file,
 {
     if (presetDirectory.createDirectory().failed())
     {
-        showPresetError ("The Data/Preset folder could not be created.");
+        showPresetError ("The Data/Presets folder could not be created.");
         return false;
     }
 
@@ -989,6 +1117,15 @@ void CSPiky64AudioProcessorEditor::savePresetAs (const juce::String& requestedNa
         return;
     }
 
+    for (const auto& factoryPreset : factoryPresets)
+    {
+        if (factoryPreset.name.equalsIgnoreCase (presetName))
+        {
+            showPresetError ("That name belongs to a built-in factory preset.");
+            return;
+        }
+    }
+
     const auto targetFile = presetDirectory.getChildFile (presetName + ".ini");
     if (targetFile.existsAsFile())
     {
@@ -1009,7 +1146,7 @@ void CSPiky64AudioProcessorEditor::renameCurrentPreset (
 {
     if (! currentPresetFile.existsAsFile())
     {
-        showPresetError ("INIT is built in and cannot be renamed.");
+        showPresetError ("Built-in presets cannot be renamed.");
         return;
     }
 
@@ -1018,6 +1155,15 @@ void CSPiky64AudioProcessorEditor::renameCurrentPreset (
     {
         showPresetError ("Please enter a preset name.");
         return;
+    }
+
+    for (const auto& factoryPreset : factoryPresets)
+    {
+        if (factoryPreset.name.equalsIgnoreCase (presetName))
+        {
+            showPresetError ("That name belongs to a built-in factory preset.");
+            return;
+        }
     }
 
     if (presetName.equalsIgnoreCase (currentPresetFile.getFileNameWithoutExtension()))
@@ -1051,7 +1197,7 @@ void CSPiky64AudioProcessorEditor::showPresetNamePrompt (bool renameExistingPres
 {
     if (renameExistingPreset && ! currentPresetFile.existsAsFile())
     {
-        showPresetError ("INIT is built in and cannot be renamed.");
+        showPresetError ("Built-in presets cannot be renamed.");
         return;
     }
 
@@ -1065,11 +1211,23 @@ void CSPiky64AudioProcessorEditor::showPresetNamePrompt (bool renameExistingPres
 
     const auto initialName = renameExistingPreset ? currentPresetName : "New Preset";
     window->addTextEditor ("presetName", initialName, "Name:");
-    window->addButton (renameExistingPreset ? "Rename" : "Save", 1);
+    window->addButton (renameExistingPreset ? "Rename" : "Save", 1,
+                       juce::KeyPress (juce::KeyPress::returnKey));
     window->addButton ("Cancel", 0);
 
-    if (auto* editor = window->getTextEditor ("presetName"))
-        editor->selectAll();
+    auto* nameEditor = window->getTextEditor ("presetName");
+    juce::Component::SafePointer<juce::AlertWindow> safeWindow (window);
+
+    if (nameEditor != nullptr)
+    {
+        nameEditor->setReturnKeyStartsNewLine (false);
+        nameEditor->setSelectAllWhenFocused (true);
+        nameEditor->onReturnKey = [safeWindow]
+        {
+            if (auto* activeWindow = safeWindow.getComponent())
+                activeWindow->exitModalState (1);
+        };
+    }
 
     juce::Component::SafePointer<CSPiky64AudioProcessorEditor> safeEditor (this);
     window->enterModalState (
@@ -1095,6 +1253,12 @@ void CSPiky64AudioProcessorEditor::showPresetNamePrompt (bool renameExistingPres
                 }
             }),
         false);
+
+    if (nameEditor != nullptr)
+    {
+        nameEditor->grabKeyboardFocus();
+        nameEditor->selectAll();
+    }
 }
 
 void CSPiky64AudioProcessorEditor::showPresetMenu()
@@ -1104,20 +1268,33 @@ void CSPiky64AudioProcessorEditor::showPresetMenu()
     constexpr int savePresetId = 1;
     constexpr int savePresetAsId = 2;
     constexpr int initialPresetId = 1000;
-    constexpr int firstUserPresetId = 1001;
+    constexpr int firstFactoryPresetId = 2000;
+    constexpr int firstUserPresetId = 3000;
 
     juce::PopupMenu loadMenu;
     loadMenu.addItem (initialPresetId, "INIT", true,
-                      ! currentPresetFile.existsAsFile()
+                      currentFactoryPresetIndex < 0
+                          && ! currentPresetFile.existsAsFile()
                           && currentPresetName.equalsIgnoreCase ("INIT"));
 
+    juce::PopupMenu factoryMenu;
+    for (int index = 0; index < static_cast<int> (factoryPresets.size()); ++index)
+    {
+        factoryMenu.addItem (firstFactoryPresetId + index,
+                             factoryPresets[static_cast<std::size_t> (index)].name,
+                             true, index == currentFactoryPresetIndex);
+    }
+    loadMenu.addSubMenu ("FACTORY", factoryMenu);
+
+    juce::PopupMenu userMenu;
     for (int index = 0; index < static_cast<int> (presetFiles.size()); ++index)
     {
         const auto& file = presetFiles[static_cast<std::size_t> (index)];
-        loadMenu.addItem (firstUserPresetId + index,
-                          file.getFileNameWithoutExtension(), true,
-                          file == currentPresetFile);
+        userMenu.addItem (firstUserPresetId + index,
+                          file.getFileNameWithoutExtension(), true, file == currentPresetFile);
     }
+    if (! presetFiles.empty())
+        loadMenu.addSubMenu ("USER", userMenu);
 
     juce::PopupMenu menu;
     menu.addSubMenu ("LOAD", loadMenu);
@@ -1128,7 +1305,7 @@ void CSPiky64AudioProcessorEditor::showPresetMenu()
     menu.showMenuAsync (
         juce::PopupMenu::Options().withTargetComponent (&presetMenuButton),
         [safeEditor, savePresetId, savePresetAsId,
-         initialPresetId, firstUserPresetId] (int result)
+         initialPresetId, firstFactoryPresetId, firstUserPresetId] (int result)
         {
             auto* editor = safeEditor.getComponent();
             if (editor == nullptr || result == 0)
@@ -1140,6 +1317,10 @@ void CSPiky64AudioProcessorEditor::showPresetMenu()
                 editor->showPresetNamePrompt (false);
             else if (result == initialPresetId)
                 editor->loadInitialPreset();
+            else if (result >= firstFactoryPresetId && result < firstUserPresetId)
+            {
+                editor->loadFactoryPreset (result - firstFactoryPresetId);
+            }
             else if (result >= firstUserPresetId)
             {
                 const auto index = result - firstUserPresetId;
@@ -1298,7 +1479,7 @@ void CSPiky64AudioProcessorEditor::paint (juce::Graphics& g)
     g.drawText ("CSPiky64", 6, 200, 44, 14, juce::Justification::centredLeft);
 
     g.setColour (juce::Colours::white);
-    g.drawText ("v0.33", 50, 200, 44, 14, juce::Justification::centredLeft);
+    g.drawText ("v1.37", 50, 200, 44, 14, juce::Justification::centredLeft);
 
     const auto drawStatusRing = [&g] (juce::Rectangle<float> bounds,
                                       juce::Colour topColour,
@@ -1351,9 +1532,9 @@ void CSPiky64AudioProcessorEditor::resized()
     setScaledBounds (reverbKnob, 263.0f, 122.0f, 28.0f, 28.0f);
     setScaledBounds (volumeKnob, 263.0f, 163.0f, 28.0f, 28.0f);
     setScaledBounds (scopeColourKnob, 15.0f, 163.0f, 28.0f, 28.0f);
-    setScaledBounds (presetNameDisplay, 101.0f, 150.0f, 95.0f, 15.0f);
-    setScaledBounds (previousPresetButton, 101.0f, 168.0f, 17.0f, 20.0f);
-    setScaledBounds (nextPresetButton, 120.0f, 168.0f, 17.0f, 20.0f);
-    setScaledBounds (renamePresetButton, 139.0f, 168.0f, 27.0f, 20.0f);
-    setScaledBounds (presetMenuButton, 168.0f, 168.0f, 28.0f, 20.0f);
+    setScaledBounds (presetNameDisplay, 101.0f, 155.0f, 95.0f, 15.0f);
+    setScaledBounds (previousPresetButton, 101.0f, 173.0f, 17.0f, 15.0f);
+    setScaledBounds (nextPresetButton, 120.0f, 173.0f, 17.0f, 15.0f);
+    setScaledBounds (renamePresetButton, 139.0f, 173.0f, 27.0f, 15.0f);
+    setScaledBounds (presetMenuButton, 168.0f, 173.0f, 28.0f, 15.0f);
 }

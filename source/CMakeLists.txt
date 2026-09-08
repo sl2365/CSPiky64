@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(CSPiky64 VERSION 0.33.0 LANGUAGES C CXX)
+project(CSPiky64 VERSION 1.37.0 LANGUAGES C CXX)
 
 set(JUCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../../_Tools/JUCE/_8.0.15")
 
@@ -12,9 +12,9 @@ endif()
 add_subdirectory("${JUCE_DIR}" "${CMAKE_BINARY_DIR}/JUCE")
 
 juce_add_plugin(CSPiky64
-    VERSION 0.33.0
-    COMPANY_NAME "SynthMaker"
-    BUNDLE_ID "com.synthmaker.cspiky64"
+    VERSION 1.37.0
+    COMPANY_NAME "sl23"
+    BUNDLE_ID "com.sl23.cspiky64"
     IS_SYNTH TRUE
     NEEDS_MIDI_INPUT TRUE
     NEEDS_MIDI_OUTPUT FALSE
@@ -22,13 +22,27 @@ juce_add_plugin(CSPiky64
     EDITOR_WANTS_KEYBOARD_FOCUS FALSE
     COPY_PLUGIN_AFTER_BUILD FALSE
     VST3_AUTO_MANIFEST FALSE
-    PLUGIN_MANUFACTURER_CODE SyMk
+    PLUGIN_MANUFACTURER_CODE sl23
     PLUGIN_CODE Pk64
     FORMATS VST3
     VST3_CATEGORIES Instrument Synth
     PRODUCT_NAME "CSPiky64")
 
 juce_generate_juce_header(CSPiky64)
+
+file(GLOB FACTORY_PRESET_FILES CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_LIST_DIR}/Presets/*.ini")
+list(LENGTH FACTORY_PRESET_FILES FACTORY_PRESET_COUNT)
+if(NOT FACTORY_PRESET_COUNT EQUAL 14)
+    message(FATAL_ERROR
+        "Expected exactly 14 embedded factory presets, found ${FACTORY_PRESET_COUNT}")
+endif()
+
+juce_add_binary_data(CSPiky64FactoryPresets
+    HEADER_NAME CSPiky64FactoryPresets.h
+    NAMESPACE CSPiky64FactoryData
+    SOURCES
+        ${FACTORY_PRESET_FILES})
 
 target_sources(CSPiky64
     PRIVATE
@@ -48,6 +62,7 @@ target_compile_definitions(CSPiky64
 
 target_link_libraries(CSPiky64
     PRIVATE
+        CSPiky64FactoryPresets
         juce::juce_audio_utils
     PUBLIC
         juce::juce_recommended_config_flags
