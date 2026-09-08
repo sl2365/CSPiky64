@@ -93,6 +93,5 @@ The script configures an x64 Release build, compiles the VST3, embeds all factor
 
 - Original CSPiky 32-bit plugin and concept: [Dario Lupo](https://www.dariolupo.com/index.html#shop?vst)
 - CSPiky64 64-bit VST3: **sl23**
-- Project source and releases on [github](https://github.com/sl2365/CSPiky64)
 
 CSPiky64 is not an exact replica of the original plugin. It is an independent homage created in appreciation of Cosmic Boy's original work. I loved the interface so much, I tried to create a modern version while keeping the originals aesthetics.
