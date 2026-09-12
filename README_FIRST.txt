@@ -1,13 +1,20 @@
-CSPiky64 - Version 1.37
+CSPiky64 - Version 1.38
 =====================
 
 PURPOSE
 -------
-This applies the permanent sl23 manufacturer identity and explicit CSPiky64
-bundle identifier. It retains the corrected New preset and preset-name display
-from Version 1.36.
+This adds Icecream-compatible MIDI pitch bend and modulation-wheel performance
+control while retaining the permanent sl23 identity, factory presets, sound
+engine, parameter layout and interface from Version 1.37.
 
-Version 1.37 includes:
+Version 1.38 includes:
+
+  - MIDI pitch bend with a default range of plus/minus 2 semitones
+  - MIDI RPN pitch-bend sensitivity support for host-selectable bend ranges
+  - Modulation wheel (CC1) vibrato at 5.5 Hz and up to plus/minus 1 semitone
+  - Five-millisecond smoothing for pitch bend and modulation-wheel movement
+  - MIDI Reset All Controllers support for returning both controls to neutral
+
   - Manufacturer name set explicitly to sl23
   - Four-character manufacturer code set explicitly to sl23
   - Explicit bundle ID com.sl23.cspiky64
@@ -269,6 +276,19 @@ Stage 0.25 retains that parameter ID but deliberately expands its travel. Existi
 Stage 0.24 FILTER automation below 100% should be recreated. Fully-right saved
 values remain fully open.
 
+
+MIDI PERFORMANCE CONTROL TEST
+-----------------------------
+
+1. Open CSPiky64 in PHI or another VST3 host and hold a note.
+2. Move pitch bend fully down and up. With the host's default MIDI setting, the
+   note should move smoothly down and up by two semitones.
+3. Return pitch bend to its centre. The note should return exactly to pitch.
+4. Move the modulation wheel from minimum to maximum while holding a note.
+   Vibrato should increase smoothly from none to a clearly audible one-semitone
+   depth at 5.5 Hz.
+5. Release the note while either control is moving and confirm the release tail
+   continues to respond without clicks or steps.
 
 PRESET MANAGEMENT TEST
 ----------------------

@@ -52,6 +52,12 @@ private:
     std::atomic<float>* reverbMixParameter = nullptr;
     std::atomic<float>* outputVolumeDbParameter = nullptr;
     std::atomic<float>* filterPositionParameter = nullptr;
+    std::atomic<float> currentModWheelAmount { 0.0f };
+    std::atomic<float> currentPitchBendRangeSemitones { 2.0f };
+    std::array<int, 16> registeredParameterMsb {};
+    std::array<int, 16> registeredParameterLsb {};
+    std::array<int, 16> pitchBendRangeCoarse {};
+    std::array<int, 16> pitchBendRangeFine {};
     juce::SmoothedValue<float> outputGain;
     juce::SmoothedValue<float> filterPosition;
     std::array<std::array<float, 4>, 2> filterState {};

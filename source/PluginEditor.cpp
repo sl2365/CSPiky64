@@ -1479,7 +1479,7 @@ void CSPiky64AudioProcessorEditor::paint (juce::Graphics& g)
     g.drawText ("CSPiky64", 6, 200, 44, 14, juce::Justification::centredLeft);
 
     g.setColour (juce::Colours::white);
-    g.drawText ("v1.37", 50, 200, 44, 14, juce::Justification::centredLeft);
+    g.drawText ("v1.38", 50, 200, 44, 14, juce::Justification::centredLeft);
 
     const auto drawStatusRing = [&g] (juce::Rectangle<float> bounds,
                                       juce::Colour topColour,

@@ -31,7 +31,7 @@ set "DATA_DIR=%DIST_DIR%\Data"
 set "PRESET_DIR=%DATA_DIR%\Presets"
 
 echo.
-echo CSPiky64 64-bit VST3 - Version 1.37 Build
+echo CSPiky64 64-bit VST3 - Version 1.38 Build
 echo ======================================
 echo.
 
@@ -128,7 +128,7 @@ echo Output:
 echo   %FINAL_PLUGIN%
 echo   %PRESET_DIR%
 echo.
-echo This is the Version 1.37 sl23 plug-in-identity build.
+echo This is the Version 1.38 MIDI performance-control build.
 echo No plug-in files were installed elsewhere.
 echo.
 exit /b 0

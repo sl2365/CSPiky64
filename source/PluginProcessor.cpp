@@ -27,6 +27,10 @@ constexpr auto lowerDetunedSawRatio = 0.9772;
 constexpr auto upperDetunedSawRatio = 1.0228;
 constexpr auto lowerDetunedSawLevel = 0.64;
 constexpr auto upperDetunedSawLevel = 0.08;
+constexpr auto defaultPitchBendRangeSemitones = 2.0f;
+constexpr auto performanceControlSmoothingSeconds = 0.005;
+constexpr auto modWheelVibratoRateHz = 5.5;
+constexpr auto modWheelVibratoDepthSemitones = 1.0;
 
 double getMeasuredFilterCutoff (float position) noexcept
 {
@@ -66,7 +70,9 @@ public:
                std::atomic<float>* characterNervousParameter,
                std::atomic<float>* decaySecondsParameter,
                std::atomic<float>* releaseSecondsParameter,
-               std::atomic<float>* octaveUpParameter)
+               std::atomic<float>* octaveUpParameter,
+               std::atomic<float>* currentModWheelAmountParameter,
+               std::atomic<float>* currentPitchBendRangeParameter)
         : wave1Strong (wave1StrongParameter),
           wave2Enabled (wave2EnabledParameter),
           wave2Shape (wave2ShapeParameter),
@@ -74,7 +80,9 @@ public:
           characterNervous (characterNervousParameter),
           decaySeconds (decaySecondsParameter),
           releaseSeconds (releaseSecondsParameter),
-          octaveUp (octaveUpParameter)
+          octaveUp (octaveUpParameter),
+          currentModWheelAmount (currentModWheelAmountParameter),
+          currentPitchBendRange (currentPitchBendRangeParameter)
     {
         jassert (wave1Strong != nullptr);
         jassert (wave2Enabled != nullptr);
@@ -84,6 +92,8 @@ public:
         jassert (decaySeconds != nullptr);
         jassert (releaseSeconds != nullptr);
         jassert (octaveUp != nullptr);
+        jassert (currentModWheelAmount != nullptr);
+        jassert (currentPitchBendRange != nullptr);
     }
 
     bool canPlaySound (juce::SynthesiserSound* sound) override
@@ -91,7 +101,8 @@ public:
         return dynamic_cast<PikySound*> (sound) != nullptr;
     }
 
-    void startNote (int midiNoteNumber, float, juce::SynthesiserSound*, int) override
+    void startNote (int midiNoteNumber, float, juce::SynthesiserSound*,
+                    int currentPitchWheelPosition) override
     {
         const auto octaveOffset = octaveUp->load() >= 0.5f ? 12 : 0;
         const auto transposedNote = juce::jlimit (0, 127, midiNoteNumber + octaveOffset);
@@ -106,6 +117,12 @@ public:
         wave2PhaseB = 0.0;
         envelope = 1.0;
         releasing = false;
+        pitchBendRangeSemitones = currentPitchBendRange->load();
+        pitchBendPosition = normalisePitchWheel (currentPitchWheelPosition);
+        targetPitchBendSemitones = pitchBendPosition * pitchBendRangeSemitones;
+        smoothedPitchBendSemitones = targetPitchBendSemitones;
+        targetModWheelAmount = currentModWheelAmount->load();
+        smoothedModWheelAmount = targetModWheelAmount;
         // MIDI velocity remains intentionally ignored for original-behavior compatibility.
     }
 
@@ -120,8 +137,59 @@ public:
         }
     }
 
-    void pitchWheelMoved (int) override {}
-    void controllerMoved (int, int) override {}
+    void pitchWheelMoved (int newPitchWheelValue) override
+    {
+        pitchBendPosition = normalisePitchWheel (newPitchWheelValue);
+        targetPitchBendSemitones = pitchBendPosition * pitchBendRangeSemitones;
+    }
+
+    void controllerMoved (int controllerNumber, int newControllerValue) override
+    {
+        const auto value = juce::jlimit (0, 127, newControllerValue);
+
+        if (controllerNumber == 1)
+        {
+            targetModWheelAmount = static_cast<float> (value) / 127.0f;
+            return;
+        }
+
+        if (controllerNumber == 101)
+        {
+            registeredParameterMsb = value;
+            return;
+        }
+
+        if (controllerNumber == 100)
+        {
+            registeredParameterLsb = value;
+            return;
+        }
+
+        const auto pitchBendSensitivitySelected = registeredParameterMsb == 0
+                                               && registeredParameterLsb == 0;
+
+        if (pitchBendSensitivitySelected && controllerNumber == 6)
+        {
+            pitchBendRangeCoarse = juce::jlimit (0, 96, value);
+            updatePitchBendRange();
+        }
+        else if (pitchBendSensitivitySelected && controllerNumber == 38)
+        {
+            pitchBendRangeFine = juce::jlimit (0, 99, value);
+            updatePitchBendRange();
+        }
+        else if (controllerNumber == 121)
+        {
+            registeredParameterMsb = 127;
+            registeredParameterLsb = 127;
+            pitchBendRangeCoarse = 2;
+            pitchBendRangeFine = 0;
+            pitchBendRangeSemitones = defaultPitchBendRangeSemitones;
+            pitchBendPosition = 0.0f;
+            targetPitchBendSemitones = 0.0f;
+            targetModWheelAmount = 0.0f;
+        }
+    }
 
     void renderNextBlock (juce::AudioBuffer<float>& outputBuffer,
                           int startSample,
@@ -144,9 +212,22 @@ public:
                                                        1.0 / (currentDecaySeconds * getSampleRate()));
         const auto currentReleaseMultiplier = std::pow (0.001,
                                                          1.0 / (currentReleaseSeconds * getSampleRate()));
+        const auto performanceControlSmoothingAmount = 1.0
+            - std::exp (-1.0 / (performanceControlSmoothingSeconds * getSampleRate()));
 
         while (--numSamples >= 0)
         {
+            smoothedPitchBendSemitones += performanceControlSmoothingAmount
+                * (targetPitchBendSemitones - smoothedPitchBendSemitones);
+            smoothedModWheelAmount += performanceControlSmoothingAmount
+                * (targetModWheelAmount - smoothedModWheelAmount);
+            const auto modWheelVibratoSemitones = modWheelVibratoDepthSemitones
+                * smoothedModWheelAmount
+                * std::sin (juce::MathConstants<double>::twoPi * modWheelPhase);
+            const auto performancePitchRatio = std::pow (
+                2.0,
+                (smoothedPitchBendSemitones + modWheelVibratoSemitones) / 12.0);
+
             auto wave1 = std::sin (phase)
                        + 0.05 * std::sin (phase * 3.0);
             if (strong)
@@ -179,10 +260,12 @@ public:
             for (int channel = 0; channel < outputBuffer.getNumChannels(); ++channel)
                 outputBuffer.addSample (channel, startSample, sample);
 
-            advancePhase (phase, phaseDelta);
-            advancePhase (wave2Phase, wave2PhaseDelta);
-            advancePhase (wave2PhaseA, wave2PhaseDeltaA);
-            advancePhase (wave2PhaseB, wave2PhaseDeltaB);
+            advancePhase (phase, phaseDelta * performancePitchRatio);
+            advancePhase (wave2Phase, wave2PhaseDelta * performancePitchRatio);
+            advancePhase (wave2PhaseA, wave2PhaseDeltaA * performancePitchRatio);
+            advancePhase (wave2PhaseB, wave2PhaseDeltaB * performancePitchRatio);
+            modWheelPhase += modWheelVibratoRateHz / getSampleRate();
+            modWheelPhase -= std::floor (modWheelPhase);
 
             envelope *= releasing ? currentReleaseMultiplier : currentDecayMultiplier;
             ++startSample;
@@ -202,7 +285,22 @@ private:
     {
         currentPhase += delta;
         if (currentPhase >= juce::MathConstants<double>::twoPi)
-            currentPhase -= juce::MathConstants<double>::twoPi;
+            currentPhase = std::fmod (currentPhase, juce::MathConstants<double>::twoPi);
+    }
+
+    static float normalisePitchWheel (int wheelValue) noexcept
+    {
+        const auto limitedValue = juce::jlimit (0, 16383, wheelValue);
+        return limitedValue >= 8192
+            ? static_cast<float> (limitedValue - 8192) / 8191.0f
+            : static_cast<float> (limitedValue - 8192) / 8192.0f;
+    }
+
+    void updatePitchBendRange() noexcept
+    {
+        pitchBendRangeSemitones = static_cast<float> (pitchBendRangeCoarse)
+                                + 0.01f * static_cast<float> (pitchBendRangeFine);
+        targetPitchBendSemitones = pitchBendPosition * pitchBendRangeSemitones;
     }
 
     double renderWave2Shape (int shape, double currentPhase) noexcept
@@ -233,6 +331,8 @@ private:
     std::atomic<float>* decaySeconds = nullptr;
     std::atomic<float>* releaseSeconds = nullptr;
     std::atomic<float>* octaveUp = nullptr;
+    std::atomic<float>* currentModWheelAmount = nullptr;
+    std::atomic<float>* currentPitchBendRange = nullptr;
 
     double phase = 0.0;
     double phaseDelta = 0.0;
@@ -243,6 +343,17 @@ private:
     double wave2PhaseDeltaA = 0.0;
     double wave2PhaseDeltaB = 0.0;
     double envelope = 0.0;
+    int registeredParameterMsb = 127;
+    int registeredParameterLsb = 127;
+    int pitchBendRangeCoarse = 2;
+    int pitchBendRangeFine = 0;
+    float pitchBendPosition = 0.0f;
+    float pitchBendRangeSemitones = defaultPitchBendRangeSemitones;
+    double targetPitchBendSemitones = 0.0;
+    double smoothedPitchBendSemitones = 0.0;
+    double targetModWheelAmount = 0.0;
+    double smoothedModWheelAmount = 0.0;
+    double modWheelPhase = 0.0;
     bool releasing = false;
 };
 }
@@ -333,6 +444,11 @@ CSPiky64AudioProcessor::CSPiky64AudioProcessor()
     jassert (outputVolumeDbParameter != nullptr);
     jassert (filterPositionParameter != nullptr);
 
+    registeredParameterMsb.fill (127);
+    registeredParameterLsb.fill (127);
+    pitchBendRangeCoarse.fill (2);
+    pitchBendRangeFine.fill (0);
+
     for (auto& sample : scopeSamples)
         sample.store (0.0f, std::memory_order_relaxed);
 
@@ -344,7 +460,9 @@ CSPiky64AudioProcessor::CSPiky64AudioProcessor()
                                              characterNervousParameter,
                                              decaySecondsParameter,
                                              releaseSecondsParameter,
-                                             octaveUpParameter));
+                                             octaveUpParameter,
+                                             &currentModWheelAmount,
+                                             &currentPitchBendRangeSemitones));
 
     synthesiser.addSound (new PikySound());
 }
@@ -367,6 +485,12 @@ void CSPiky64AudioProcessor::changeProgramName (int, const juce::String&) {}
 
 void CSPiky64AudioProcessor::prepareToPlay (double sampleRate, int)
 {
+    currentModWheelAmount.store (0.0f);
+    currentPitchBendRangeSemitones.store (defaultPitchBendRangeSemitones);
+    registeredParameterMsb.fill (127);
+    registeredParameterLsb.fill (127);
+    pitchBendRangeCoarse.fill (2);
+    pitchBendRangeFine.fill (0);
     processingSampleRate = sampleRate;
     synthesiser.setCurrentPlaybackSampleRate (sampleRate);
     reverb.setSampleRate (sampleRate);
@@ -386,6 +510,8 @@ void CSPiky64AudioProcessor::prepareToPlay (double sampleRate, int)
 
 void CSPiky64AudioProcessor::releaseResources()
 {
+    currentModWheelAmount.store (0.0f);
+    currentPitchBendRangeSemitones.store (defaultPitchBendRangeSemitones);
     reverb.reset();
     for (auto& sample : scopeSamples)
         sample.store (0.0f, std::memory_order_relaxed);
@@ -406,6 +532,53 @@ void CSPiky64AudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
 {
     juce::ScopedNoDenormals noDenormals;
     buffer.clear();
+
+    for (const auto metadata : midiMessages)
+    {
+        const auto& message = metadata.getMessage();
+        if (! message.isController())
+            continue;
+
+        const auto controller = message.getControllerNumber();
+        const auto value = juce::jlimit (0, 127, message.getControllerValue());
+        const auto channelIndex = static_cast<std::size_t> (
+            juce::jlimit (0, 15, message.getChannel() - 1));
+
+        if (controller == 1)
+            currentModWheelAmount.store (
+                static_cast<float> (value) / 127.0f);
+        else if (controller == 101)
+            registeredParameterMsb[channelIndex] = value;
+        else if (controller == 100)
+            registeredParameterLsb[channelIndex] = value;
+        else if (registeredParameterMsb[channelIndex] == 0
+                 && registeredParameterLsb[channelIndex] == 0
+                 && controller == 6)
+        {
+            pitchBendRangeCoarse[channelIndex] = juce::jlimit (0, 96, value);
+            currentPitchBendRangeSemitones.store (
+                static_cast<float> (pitchBendRangeCoarse[channelIndex])
+                + 0.01f * static_cast<float> (pitchBendRangeFine[channelIndex]));
+        }
+        else if (registeredParameterMsb[channelIndex] == 0
+                 && registeredParameterLsb[channelIndex] == 0
+                 && controller == 38)
+        {
+            pitchBendRangeFine[channelIndex] = juce::jlimit (0, 99, value);
+            currentPitchBendRangeSemitones.store (
+                static_cast<float> (pitchBendRangeCoarse[channelIndex])
+                + 0.01f * static_cast<float> (pitchBendRangeFine[channelIndex]));
+        }
+        else if (controller == 121)
+        {
+            currentModWheelAmount.store (0.0f);
+            registeredParameterMsb[channelIndex] = 127;
+            registeredParameterLsb[channelIndex] = 127;
+            pitchBendRangeCoarse[channelIndex] = 2;
+            pitchBendRangeFine[channelIndex] = 0;
+            currentPitchBendRangeSemitones.store (defaultPitchBendRangeSemitones);
+        }
+    }
 
     keyboardState.processNextMidiBuffer (midiMessages, 0, buffer.getNumSamples(), true);
     synthesiser.renderNextBlock (buffer, midiMessages, 0, buffer.getNumSamples());
