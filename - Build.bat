@@ -24,14 +24,14 @@ set "SOURCE_DIR=%PROJECT_ROOT%source"
 set "BUILD_DIR=%PROJECT_ROOT%build"
 set "DIST_DIR=%PROJECT_ROOT%dist"
 set "CMAKE_EXE=%PROJECT_ROOT%..\_Tools\cmake\_4.4.2\bin\cmake.exe"
-set "JUCE_CMAKE=%PROJECT_ROOT%..\_Tools\JUCE\_8.0.15\CMakeLists.txt"
+set "JUCE_CMAKE=%PROJECT_ROOT%..\_Tools\JUCE\_9.0.4\CMakeLists.txt"
 set "BUNDLE_BINARY=%BUILD_DIR%\CSPiky64_artefacts\Release\VST3\CSPiky64.vst3\Contents\x86_64-win\CSPiky64.vst3"
 set "FINAL_PLUGIN=%DIST_DIR%\CSPiky64.vst3"
 set "DATA_DIR=%DIST_DIR%\Data"
 set "PRESET_DIR=%DATA_DIR%\Presets"
 
 echo.
-echo CSPiky64 64-bit VST3 - Version 1.38 Build
+echo CSPiky64 64-bit VST3 - Version 1.39 Build
 echo ======================================
 echo.
 
@@ -59,6 +59,15 @@ if errorlevel 1 goto :missing_powershell
 echo       PASS
 echo.
 echo [2/5] Configuring Visual Studio Community 2026 x64...
+
+if exist "%BUILD_DIR%\CMakeCache.txt" (
+    findstr.exe /I /C:"_Tools/JUCE/_8.0.15" "%BUILD_DIR%\CMakeCache.txt" >nul 2>nul
+    if not errorlevel 1 (
+        echo       Removing the old JUCE 8 build cache...
+        rmdir /s /q "%BUILD_DIR%"
+        if exist "%BUILD_DIR%" goto :cache_cleanup_failed
+    )
+)
 
 "%CMAKE_EXE%" -S "%SOURCE_DIR%" -B "%BUILD_DIR%" -G "Visual Studio 18 2026" -A x64
 if errorlevel 1 goto :configure_failed
@@ -128,7 +137,7 @@ echo Output:
 echo   %FINAL_PLUGIN%
 echo   %PRESET_DIR%
 echo.
-echo This is the Version 1.38 MIDI performance-control build.
+echo This is the Version 1.39 JUCE 9.0.4 build.
 echo No plug-in files were installed elsewhere.
 echo.
 exit /b 0
@@ -145,7 +154,7 @@ goto :failed
 :missing_juce
 echo.
 echo BUILD FAILED
-echo   - FAIL: JUCE 8.0.15 was not found
+echo   - FAIL: JUCE 9.0.4 was not found
 echo.
 echo Expected:
 echo   %JUCE_CMAKE%
@@ -171,6 +180,13 @@ echo.
 echo BUILD FAILED
 echo   - PASS: Required tools and source files found
 echo   - FAIL: CMake could not configure Visual Studio Community 2026 x64
+goto :failed
+
+:cache_cleanup_failed
+echo.
+echo BUILD FAILED
+echo   - PASS: Required tools and source files found
+echo   - FAIL: The old JUCE 8 build cache could not be removed
 goto :failed
 
 :build_failed

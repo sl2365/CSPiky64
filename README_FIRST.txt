@@ -1,13 +1,17 @@
-CSPiky64 - Version 1.38
+CSPiky64 - Version 1.39
 =====================
 
 PURPOSE
 -------
-This adds Icecream-compatible MIDI pitch bend and modulation-wheel performance
-control while retaining the permanent sl23 identity, factory presets, sound
-engine, parameter layout and interface from Version 1.37.
+This updates CSPiky64 to JUCE 9.0.4 while retaining the permanent sl23 identity,
+factory presets, sound engine, parameter layout, MIDI performance controls and
+interface from Version 1.38.
 
-Version 1.38 includes:
+Version 1.39 includes:
+
+  - Build framework updated from JUCE 8.0.15 to JUCE 9.0.4
+  - Automatic removal of an existing JUCE 8 CMake build cache during the first
+    Version 1.39 build
 
   - MIDI pitch bend with a default range of plus/minus 2 semitones
   - MIDI RPN pitch-bend sensitivity support for host-selectable bend ranges
@@ -644,7 +648,7 @@ The folders should look like this:
       cmake
         _4.4.2
       JUCE
-        _8.0.15
+        _9.0.4
     CSPiky64
       - Build.bat
       source
