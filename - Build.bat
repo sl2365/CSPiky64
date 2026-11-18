@@ -27,11 +27,9 @@ set "CMAKE_EXE=%PROJECT_ROOT%..\_Tools\cmake\_4.4.2\bin\cmake.exe"
 set "JUCE_CMAKE=%PROJECT_ROOT%..\_Tools\JUCE\_9.0.4\CMakeLists.txt"
 set "BUNDLE_BINARY=%BUILD_DIR%\CSPiky64_artefacts\Release\VST3\CSPiky64.vst3\Contents\x86_64-win\CSPiky64.vst3"
 set "FINAL_PLUGIN=%DIST_DIR%\CSPiky64.vst3"
-set "DATA_DIR=%DIST_DIR%\Data"
-set "PRESET_DIR=%DATA_DIR%\Presets"
 
 echo.
-echo CSPiky64 64-bit VST3 - Version 1.39 Build
+echo CSPiky64 64-bit VST3 - Version 1.40 Build
 echo ======================================
 echo.
 
@@ -83,7 +81,7 @@ if not exist "%BUNDLE_BINARY%" goto :binary_not_found
 
 echo       PASS
 echo.
-echo [4/5] Creating the portable output and data folders...
+echo [4/5] Creating the portable output...
 
 if not exist "%DIST_DIR%" mkdir "%DIST_DIR%"
 if errorlevel 1 goto :dist_failed
@@ -95,12 +93,6 @@ copy /y "%BUNDLE_BINARY%" "%FINAL_PLUGIN%" >nul
 if errorlevel 1 goto :copy_failed
 
 if not exist "%FINAL_PLUGIN%" goto :copy_failed
-
-if not exist "%DATA_DIR%" mkdir "%DATA_DIR%"
-if not exist "%DATA_DIR%" goto :data_failed
-
-if not exist "%PRESET_DIR%" mkdir "%PRESET_DIR%"
-if not exist "%PRESET_DIR%" goto :data_failed
 
 echo       PASS
 echo.
@@ -117,12 +109,9 @@ powershell.exe -NoProfile -Command ^
 if errorlevel 1 goto :wrong_architecture
 
 powershell.exe -NoProfile -Command ^
-  "$extra = Get-ChildItem -LiteralPath '%DIST_DIR%' -Force | Where-Object { $_.Name -notin @('CSPiky64.vst3', 'Data') };" ^
+  "$extra = Get-ChildItem -LiteralPath '%DIST_DIR%' -Force | Where-Object { $_.Name -notin @('CSPiky64.vst3', 'CSPiky64.rar', 'Data', 'CSPiky64_Data') };" ^
   "if ($extra) { $extra | ForEach-Object { Write-Host ('Unexpected: ' + $_.FullName) }; exit 1 }"
 if errorlevel 1 goto :unexpected_dist_files
-
-if not exist "%DATA_DIR%\" goto :data_failed
-if not exist "%PRESET_DIR%\" goto :data_failed
 
 echo       PASS
 echo.
@@ -130,14 +119,14 @@ echo BUILD SUMMARY
 echo   - PASS: Required tools and source files found
 echo   - PASS: Visual Studio Community 2026 x64 configured
 echo   - PASS: Release VST3 compiled
-echo   - PASS: Single-file VST3 and persistent Data folders created
+echo   - PASS: Single-file VST3 created
 echo   - PASS: Output verified as Windows x64
 echo.
 echo Output:
 echo   %FINAL_PLUGIN%
-echo   %PRESET_DIR%
 echo.
-echo This is the Version 1.39 JUCE 9.0.4 build.
+echo CSPiky64_Data is created or migrated by the plug-in on first run.
+echo This is the Version 1.40 CSPiky64_Data migration build.
 echo No plug-in files were installed elsewhere.
 echo.
 exit /b 0
@@ -218,12 +207,6 @@ echo BUILD FAILED
 echo   - FAIL: CSPiky64.vst3 could not be copied into dist
 goto :failed
 
-:data_failed
-echo.
-echo BUILD FAILED
-echo   - FAIL: dist\Data\Presets could not be created or verified
-goto :failed
-
 :wrong_architecture
 echo.
 echo BUILD FAILED
@@ -237,7 +220,9 @@ echo   - FAIL: dist contains an unexpected file or folder
 echo.
 echo Allowed:
 echo   CSPiky64.vst3
+echo   CSPiky64.rar
 echo   Data
+echo   CSPiky64_Data
 goto :failed
 
 :failed

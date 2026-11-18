@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(CSPiky64 VERSION 1.39 LANGUAGES C CXX)
+project(CSPiky64 VERSION 1.40 LANGUAGES C CXX)
 
 set(JUCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../../_Tools/JUCE/_9.0.4")
 
@@ -12,7 +12,7 @@ endif()
 add_subdirectory("${JUCE_DIR}" "${CMAKE_BINARY_DIR}/JUCE")
 
 juce_add_plugin(CSPiky64
-    VERSION 1.39
+    VERSION 1.40
     COMPANY_NAME "sl23"
     BUNDLE_ID "com.sl23.cspiky64"
     IS_SYNTH TRUE

@@ -39,6 +39,17 @@ constexpr std::array<const char*, 12> presetParameterIds {
     "scopeColour"
 };
 
+juce::File getMigratedDataDirectory (const juce::File& parentDirectory)
+{
+    const auto dataDirectory = parentDirectory.getChildFile ("CSPiky64_Data");
+    const auto legacyDataDirectory = parentDirectory.getChildFile ("Data");
+
+    if (legacyDataDirectory.isDirectory())
+        legacyDataDirectory.moveFileTo (dataDirectory);
+
+    return dataDirectory;
+}
+
 juce::File getPluginDataDirectory()
 {
 #if JUCE_WINDOWS
@@ -55,16 +66,15 @@ juce::File getPluginDataDirectory()
             moduleHandle, modulePath.data(), static_cast<DWORD> (modulePath.size()));
 
         if (pathLength > 0 && pathLength < modulePath.size())
-            return juce::File (juce::String (modulePath.data()))
-                .getParentDirectory()
-                .getChildFile ("Data");
+            return getMigratedDataDirectory (
+                juce::File (juce::String (modulePath.data())).getParentDirectory());
     }
 #endif
 
-    return juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
+    return getMigratedDataDirectory (
+        juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
         .getChildFile ("SynthMaker")
-        .getChildFile ("CSPiky64")
-        .getChildFile ("Data");
+        .getChildFile ("CSPiky64"));
 }
 
 juce::StringPairArray readIniText (const juce::String& text)
@@ -1060,7 +1070,7 @@ bool CSPiky64AudioProcessorEditor::savePresetFile (const juce::File& file,
 {
     if (presetDirectory.createDirectory().failed())
     {
-        showPresetError ("The Data/Presets folder could not be created.");
+        showPresetError ("The CSPiky64_Data/Presets folder could not be created.");
         return false;
     }
 
@@ -1479,7 +1489,7 @@ void CSPiky64AudioProcessorEditor::paint (juce::Graphics& g)
     g.drawText ("CSPiky64", 6, 200, 44, 14, juce::Justification::centredLeft);
 
     g.setColour (juce::Colours::white);
-    g.drawText ("v1.39", 50, 200, 44, 14, juce::Justification::centredLeft);
+    g.drawText ("v1.40", 50, 200, 44, 14, juce::Justification::centredLeft);
 
     const auto drawStatusRing = [&g] (juce::Rectangle<float> bounds,
                                       juce::Colour topColour,

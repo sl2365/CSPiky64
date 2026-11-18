@@ -1,13 +1,19 @@
-CSPiky64 - Version 1.39
+CSPiky64 - Version 1.40
 =====================
 
 PURPOSE
 -------
-This updates CSPiky64 to JUCE 9.0.4 while retaining the permanent sl23 identity,
-factory presets, sound engine, parameter layout, MIDI performance controls and
-interface from Version 1.38.
+This renames the portable Data folder to CSPiky64_Data while retaining the
+JUCE 9.0.4 build, permanent sl23 identity, factory presets, sound engine,
+parameter layout, MIDI performance controls and interface from Version 1.39.
 
-Version 1.39 includes:
+Version 1.40 includes:
+
+  - On first run, new installations create CSPiky64_Data beside the VST3
+  - On first run, an existing Data folder is automatically renamed to
+    CSPiky64_Data
+  - Presets and Settings.ini continue from the renamed folder
+  - The build creates only the VST3 and does not create or rename data folders
 
   - Build framework updated from JUCE 8.0.15 to JUCE 9.0.4
   - Automatic removal of an existing JUCE 8 CMake build cache during the first
@@ -136,7 +142,7 @@ Version 1.39 includes:
     last user preset and the built-in INIT state
   - A NAME button for renaming the currently selected user preset
   - A MENU button with LOAD, SAVE, and SAVE AS functions
-  - Human-readable .ini user presets in dist/Data/Presets
+  - Human-readable .ini user presets in dist/CSPiky64_Data/Presets
   - All twelve front-panel parameters stored in every user preset: WAVE 1,
     WAVE 2 on/off and shape, +SAWS, CHARACTER, DEC, REL, OCT, REV, VOL, FILTER,
     and SCOPE COLOUR
@@ -149,12 +155,13 @@ Version 1.39 includes:
   - Separate FACTORY and USER sections inside the LOAD menu
   - Factory presets available to previous/next buttons and mouse-wheel selection
     without installing separate factory-preset files
-  - Automatic migration of existing .ini files from Data/Preset to Data/Presets,
+  - Automatic migration of existing .ini files from CSPiky64_Data/Preset to
+    CSPiky64_Data/Presets,
     without overwriting a same-named file already in the new folder
   - The current preset label retained in the normal host project state
-  - Editor Width and Height saved on GUI close to dist/Data/Settings.ini
+  - Editor Width and Height saved on GUI close to dist/CSPiky64_Data/Settings.ini
   - Saved editor size clamped to the existing 75% through 200% limits on reopen
-  - The build creates Data/Presets when absent and preserves it on later builds
+  - The plug-in creates CSPiky64_Data/Presets when absent
   - Preset naming opens with the complete name selected and keyboard focus active
   - Enter is handled directly by the focused name field and confirms SAVE AS or
     NAME without requiring another mouse click
@@ -235,7 +242,7 @@ for Version 1.36 in an existing project.
 Human-readable CSPiky64 .ini presets remain compatible because all twelve
 parameter IDs and their value formats are unchanged. Save important Version
 1.36 sounds as user presets before migration, then copy those .ini files into
-the Version 1.37 Data\Presets folder and load them normally.
+the CSPiky64_Data\Presets folder and load them normally.
 
 MIDI notes and MIDI clips are unchanged. After inserting Version 1.37 on an old
 track, check the track's instrument routing and any host-specific MIDI-learn or
@@ -302,7 +309,8 @@ PRESET MANAGEMENT TEST
    SCOPE COLOUR, FILTER, VOL, OCT, and both Wave 2 knobs.
 3. Click MENU and choose SAVE AS. Confirm "New Preset" is already selected and
    focused, type a distinctive name, press Enter, and confirm it is saved.
-4. Check dist\Data\Presets and confirm a matching .ini file exists and is readable
+4. Check dist\CSPiky64_Data\Presets and confirm a matching .ini file exists and
+   is readable
    in a text editor.
 5. Change every control, choose INIT, then load the saved preset from MENU and
    confirm all twelve controls and the sound return together.
@@ -319,7 +327,8 @@ PRESET MANAGEMENT TEST
    and all embedded factory presets.
 9. Change a selected user preset and choose MENU > SAVE. Reload INIT and the user
    preset to confirm SAVE replaced that preset's values.
-10. Resize the GUI, close its window, and confirm dist\Data\Settings.ini contains
+10. Resize the GUI, close its window, and confirm
+    dist\CSPiky64_Data\Settings.ini contains
    Width and Height. Reopen it and confirm the saved size returns.
 11. Build again and confirm the existing preset INI files and Settings.ini remain
     untouched.
@@ -327,8 +336,10 @@ PRESET MANAGEMENT TEST
     preset label return even without manually loading a preset.
 13. Confirm FILTER and VOL labels are black while their knobs remain purple and
     green.
-14. If a former dist\Data\Preset folder contains user .ini files, open the plug-in
-    and confirm they appear in dist\Data\Presets without replacing newer files.
+14. Confirm building alone does not create CSPiky64_Data.
+15. On a new installation, open the plug-in and confirm CSPiky64_Data is created.
+16. If a former dist\Data folder exists, open the plug-in and confirm it is
+    renamed to dist\CSPiky64_Data with its presets and Settings.ini preserved.
 15. Select a disposable user preset, delete its .ini file while the editor is
     open, then scroll once over the displayed name. Confirm the display returns
     cleanly to INIT rather than jumping unpredictably. Scroll again and confirm
